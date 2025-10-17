@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: do4me_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/sites-available/do4me.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+      - ./php-app:/var/www/php-app
+    depends_on:
+      - php
+      - payment-service
+    networks:
+      - do4me-network
+
+  php:
+    build:
+      context: ./php-app
+      dockerfile: Dockerfile
+    container_name: do4me_php
+    volumes:
+      - ./php-app:/var/www/php-app
+      - ./uploads:/var/www/php-app/public/uploads
+    environment:
+      - DB_HOST=mysql
+      - DB_NAME=do4me
+      - DB_USER=do4me_user
+      - DB_PASS=do4me_password
+      - APP_ENV=production
+      - APP_DEBUG=false
+    depends_on:
+      - mysql
+    networks:
+      - do4me-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: do4me_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: do4me
+      MYSQL_USER: do4me_user
+      MYSQL_PASSWORD: do4me_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    networks:
+      - do4me-network
+
+  redis:
+    image: redis:alpine
+    container_name: do4me_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - do4me-network
+
+  payment-service:
+    build:
+      context: ./python-api/payment-service
+      dockerfile: Dockerfile
+    container_name: do4me_payment
+    environment:
+      - DATABASE_URL=mysql://do4me_user:do4me_password@mysql:3306/do4me_payments
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - MPESA_CONSUMER_KEY=${MPESA_CONSUMER_KEY}
+    depends_on:
+      - mysql
+    networks:
+      - do4me-network
+
+  websocket-service:
+    build:
+      context: ./python-api/websocket-service
+      dockerfile: Dockerfile
+    container_name: do4me_websocket
+    ports:
+      - "8765:8765"
+    networks:
+      - do4me-network
+
+volumes:
+  mysql_data:
+
+networks:
+  do4me-network:
+    driver: bridge
