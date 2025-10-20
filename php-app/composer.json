@@ -78,7 +78,7 @@
         },
         {
             "type": "vcs",
-            "url": "https://github.com/do4me/payment-sdk"
+            "url": "https://github.com/3mutua/DO4ME.git"
         }
     ],
     "extra": {
